@@ -50,9 +50,13 @@ def custom_annotate(txt, coord):
                 fontsize=8, fontweight='bold')
 
 
-def get_text_for_test(test, precision = 3):
-    txt = ("{0:."+str(precision)+"f}").format(round(test[0], precision)) + \
-           '\n' + "{0:.2f}".format(round(test[1], 2))
+def get_text_for_test(test, precision = 3, preceding0=True):
+    if preceding0:
+        txt = ("{0:."+str(precision)+"f}").format(round(test[0], precision)) + \
+               '\n' + "{0:.2f}".format(round(test[1], 2))
+    else:
+        txt = ("{0:."+str(precision)+"f}").format(round(test[0], precision)) + \
+               '\n' + "{0:.2f}".format(round(test[1], 2)).lstrip('0')
     if test[1] < 0.05:
         txt = txt+'*'
     return txt

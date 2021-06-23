@@ -39,7 +39,7 @@ to setup
   set dd-payoff 2
 
   ;; in first period, flip a coin to determine whether to cooperate
-  set init-coop 0.15
+  set init-coop (percent-altruists / 100)
   set thresh-coop 0.5
 
   ;; forward thinking in case of reputation: cooperation is more likely
@@ -48,13 +48,12 @@ to setup
      set thresh-coop thresh-coop - (0.05 * reputation)
   ]
 
-  ;; assume 20% defectors, 65% reciprocators, 15% altruists (Kurzban and Houser 2005)
-  set cooperative-types (list
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
-    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
-    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
-    1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2)
+  ;; assume percent-defectors are defectors, percent-altruists are altruists,
+  ;; and the remaining are reciprocators
+  let defs n-values (round (percent-defectors * population-size / 100)) [0]
+  let ccs n-values (round ((100 - percent-defectors - percent-altruists) * population-size / 100)) [1]
+  let alts n-values (round (percent-altruists * population-size / 100)) [2]
+  set cooperative-types shuffle (sentence defs ccs alts)
 
   create-turtles population-size [turtle-setup]
   network-setup
@@ -70,7 +69,11 @@ to turtle-setup
   set shape "circle"
   ;; wealth is initially distributed according to income-distribution
   set wealth 0
-  set cooperativeness one-of cooperative-types
+
+  ;; remove and return the first value of cooperative-types
+  set cooperativeness first cooperative-types
+  set cooperative-types remove-item 0 cooperative-types
+
   set action-history []
   set others-history []
   set payoff-history []
@@ -107,22 +110,22 @@ end
 
 to setup-random-network
   ;; repeat until the network is connected
-  while [min [count link-neighbors] of turtles = 0]
+  ;;  while [min [count link-neighbors] of turtles = 0] []
+
+  clear-links
+  let num-links (avg-partners * population-size / 2)
+  while [count links < num-links ]
   [
-    clear-links
-    let num-links (avg-partners * population-size / 2)
-    while [count links < num-links ]
-    [
-      ask one-of turtles
-      [ ;; choose to connect to an agent chosen completely at random
-        let choice (one-of (other turtles with [not link-neighbor? myself]))
-        if choice != nobody
-        [
-          create-link-with choice
-        ]
+    ask one-of turtles
+    [ ;; choose to connect to an agent chosen completely at random
+      let choice (one-of (other turtles with [not link-neighbor? myself]))
+      if choice != nobody
+      [
+        create-link-with choice
       ]
     ]
   ]
+
 end
 
 
@@ -219,11 +222,24 @@ to play
   let others-choice 0
   if count link-neighbors > 0
   [
-    ;; payoff is a function of mean choice of others
-    set others-choice mean [action-choice] of link-neighbors
-    ifelse action-choice = 1
-      [set payoff cc-payoff * others-choice + cd-payoff * (1 - others-choice)]
-      [set payoff dc-payoff * others-choice + dd-payoff * (1 - others-choice)]
+    if payoff-function = "average" [
+      ;; payoff is a function of mean choice of others
+      set others-choice mean [action-choice] of link-neighbors
+      ifelse action-choice = 1
+        [set payoff cc-payoff * others-choice + cd-payoff * (1 - others-choice)]
+        [set payoff dc-payoff * others-choice + dd-payoff * (1 - others-choice)]
+    ]
+    if payoff-function = "per neighbor" [
+      ;; payoff is per neighbor
+      ifelse action-choice = 1
+        [foreach [action-choice] of link-neighbors
+          [x -> ifelse x = 1 [set payoff payoff + cc-payoff] [set payoff payoff + cd-payoff] ]
+        ]
+        [foreach [action-choice] of link-neighbors
+          [x -> ifelse x = 1 [set payoff payoff + dc-payoff] [set payoff payoff + dd-payoff] ]
+        ]
+    ]
+
   ]
   ;; update action-history, others-history
   set action-history lput action-choice action-history
@@ -396,9 +412,9 @@ ticks
 
 BUTTON
 10
-280
+380
 90
-320
+420
 NIL
 setup
 NIL
@@ -413,9 +429,9 @@ NIL
 
 BUTTON
 100
-280
+380
 190
-320
+420
 NIL
 go
 T
@@ -430,9 +446,9 @@ NIL
 
 BUTTON
 200
-280
+380
 290
-320
+420
 go once
 go
 NIL
@@ -498,9 +514,9 @@ PENS
 
 SWITCH
 10
-340
+440
 152
-373
+473
 resize-nodes?
 resize-nodes?
 1
@@ -509,24 +525,24 @@ resize-nodes?
 
 CHOOSER
 10
-50
-177
-95
+265
+185
+310
 network
 network
 "rewired-random" "rewired-clustered" "strategic-random" "strategic-clustered"
-3
+2
 
 SLIDER
 10
-100
-182
-133
+315
+185
+348
 reputation
 reputation
 0
 10
-1.0
+3.0
 1
 1
 NIL
@@ -534,9 +550,9 @@ HORIZONTAL
 
 SLIDER
 10
-140
-182
-173
+50
+185
+83
 avg-partners
 avg-partners
 1
@@ -593,6 +609,46 @@ false
 "" "clear-plot"
 PENS
 "default" 1.0 2 -16777216 false "" "ask turtles [plotxy (mean action-history) wealth]"
+
+SLIDER
+10
+110
+182
+143
+percent-defectors
+percent-defectors
+0
+50
+25.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+145
+182
+178
+percent-altruists
+percent-altruists
+0
+50
+25.0
+1
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+10
+200
+202
+245
+payoff-function
+payoff-function
+"average" "per neighbor"
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -662,7 +718,6 @@ For the model itself:
 Please cite the NetLogo software as:
 
 * Wilensky, U. (1999). NetLogo. http://ccl.northwestern.edu/netlogo/. Center for Connected Learning and Computer-Based Modeling, Northwestern University, Evanston, IL.
-
 @#$#@#$#@
 default
 true
@@ -946,12 +1001,12 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="100_0.15_init_frep_initboost_nothreshboost" repetitions="500" runMetricsEveryStep="false">
+  <experiment name="ineq_rep013_nei25" repetitions="200" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
     <timeLimit steps="100"/>
@@ -961,6 +1016,7 @@ NetLogo 6.1.1
     <metric>[cooperativeness] of turtles</metric>
     <metric>[mean action-history] of turtles</metric>
     <enumeratedValueSet variable="avg-partners">
+      <value value="2"/>
       <value value="5"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="population-size">
@@ -969,17 +1025,21 @@ NetLogo 6.1.1
     <enumeratedValueSet variable="resize-nodes?">
       <value value="false"/>
     </enumeratedValueSet>
+    <enumeratedValueSet variable="payoff-function">
+      <value value="&quot;average&quot;"/>
+      <value value="&quot;per neighbor&quot;"/>
+    </enumeratedValueSet>
     <enumeratedValueSet variable="network">
       <value value="&quot;rewired-random&quot;"/>
-      <value value="&quot;rewired-clustered&quot;"/>
       <value value="&quot;strategic-random&quot;"/>
-      <value value="&quot;strategic-clustered&quot;"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="reputation">
       <value value="0"/>
       <value value="1"/>
       <value value="3"/>
     </enumeratedValueSet>
+    <steppedValueSet variable="percent-defectors" first="0" step="1" last="25"/>
+    <steppedValueSet variable="percent-altruists" first="0" step="1" last="25"/>
   </experiment>
 </experiments>
 @#$#@#$#@
