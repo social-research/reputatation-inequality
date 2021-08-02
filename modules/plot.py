@@ -1,3 +1,9 @@
+"""
+Created on Aug 2 2021
+@author: milenavt
+Purpose: Helping functions for plotting
+"""
+
 import numpy as np
 import pandas as pd
 import seaborn as sb

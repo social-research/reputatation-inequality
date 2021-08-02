@@ -1,3 +1,9 @@
+"""
+Created on Aug 2 2021
+@author: milenavt
+Purpose: Helping functions for correlation analysis
+"""
+
 import numpy as np
 import pandas as pd
 from scipy.stats import mannwhitneyu
